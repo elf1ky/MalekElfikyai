@@ -464,7 +464,7 @@ def log_activity(user_id, activity_type, details=""):
 def get_stats(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) as total FROM chat_history WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT COUNT(*) as total FROM book_chat_history WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     total_chats = _row_to_dict(row, cursor)['total'] if row else 0
     cursor.execute("SELECT COUNT(*) as total FROM notes WHERE user_id = ?", (user_id,))
