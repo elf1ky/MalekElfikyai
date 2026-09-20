@@ -19,7 +19,7 @@ def _last_insert_id(cursor):
 def get_db_connection():
     if USE_TURSO:
         try:
-            import libsql_experimental as libsql
+            import libsql
             conn = libsql.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
             return conn
         except Exception as e:
