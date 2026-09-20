@@ -5,6 +5,17 @@ import secrets
 from django.core.mail import get_connection
 from config import DB_PATH, USE_TURSO, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
 
+def close_conn(conn):
+    """Close the connection — libsql connections have no close(), so we skip them."""
+    try:
+        conn.close()
+    except AttributeError:
+        pass
+
+def _last_insert_id(cursor):
+    cursor.execute("SELECT last_insert_rowid()")
+    return cursor.fetchone()[0]
+
 def get_db_connection():
     if USE_TURSO:
         try:
@@ -173,7 +184,7 @@ def init_db():
     """)
 
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 # ========== Auth ==========
 def hash_password(password):
@@ -194,18 +205,18 @@ def create_user(username, password, full_name, role="student"):
         cursor.execute("INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)",
                        (username, hash_password(password), full_name, role))
         conn.commit()
-        return cursor.lastrowid
+        return _last_insert_id(cursor)
     except:
         return None
     finally:
-        conn.close()
+        close_conn(conn)
 
 def authenticate_user(username, password):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
-    conn.close()
+    close_conn(conn)
     user_dict = _row_to_dict(user, cursor)
     if user_dict and verify_password(user_dict['password_hash'], password):
         return user_dict
@@ -218,8 +229,8 @@ def create_class(name, description, exam_url, created_by):
     cursor.execute("INSERT INTO classes (name, description, exam_url, created_by) VALUES (?, ?, ?, ?)",
                    (name, description, exam_url, created_by))
     conn.commit()
-    class_id = cursor.lastrowid
-    conn.close()
+    class_id = _last_insert_id(cursor)
+    close_conn(conn)
     return class_id
 
 def get_all_classes():
@@ -227,7 +238,7 @@ def get_all_classes():
     cursor = conn.cursor()
     cursor.execute("SELECT c.*, u.full_name as teacher_name FROM classes c JOIN users u ON c.created_by = u.id ORDER BY c.created_at")
     classes = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return classes
 
 def get_class_by_id(class_id):
@@ -235,7 +246,7 @@ def get_class_by_id(class_id):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM classes WHERE id = ?", (class_id,))
     cls = cursor.fetchone()
-    conn.close()
+    close_conn(conn)
     return _row_to_dict(cls, cursor) if cls else None
 
 def delete_class(class_id):
@@ -258,7 +269,7 @@ def delete_class(class_id):
     # 6. The class — last
     cursor.execute("DELETE FROM classes WHERE id = ?", (class_id,))
     conn.commit()
-    conn.close()
+    close_conn(conn)
     
 # ========== Books ==========
 def save_book(class_id, title, subject, description, book_url, file_name, file_type, uploaded_by):
@@ -269,8 +280,8 @@ def save_book(class_id, title, subject, description, book_url, file_name, file_t
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (class_id, title, subject, description, book_url, file_name, file_type, uploaded_by))
     conn.commit()
-    book_id = cursor.lastrowid
-    conn.close()
+    book_id = _last_insert_id(cursor)
+    close_conn(conn)
     return book_id
 
 def get_books_by_class(class_id):
@@ -278,7 +289,7 @@ def get_books_by_class(class_id):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM books WHERE class_id = ?", (class_id,))
     books = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return books
 
 def get_all_books():
@@ -286,7 +297,7 @@ def get_all_books():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM books ORDER BY created_at DESC")
     books = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return books
 
 def get_book_by_id(book_id):
@@ -294,7 +305,7 @@ def get_book_by_id(book_id):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
     book = cursor.fetchone()
-    conn.close()
+    close_conn(conn)
     return _row_to_dict(book, cursor)
 
 def delete_book(book_id):
@@ -311,7 +322,7 @@ def delete_book(book_id):
     # 5. The book itself — always last
     cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 # ========== Chunks ==========
 def save_book_chunk(book_id, chunk_text, chunk_index, page_number=None):
     conn = get_db_connection()
@@ -319,14 +330,14 @@ def save_book_chunk(book_id, chunk_text, chunk_index, page_number=None):
     cursor.execute("INSERT INTO book_chunks (book_id, chunk_text, chunk_index, page_number) VALUES (?, ?, ?, ?)",
                    (book_id, chunk_text, chunk_index, page_number))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def get_book_chunks(book_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM book_chunks WHERE book_id = ? ORDER BY chunk_index", (book_id,))
     chunks = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return chunks
 
 def search_book_chunks(book_id, query, limit=5):
@@ -340,7 +351,7 @@ def search_book_chunks(book_id, query, limit=5):
     cursor.execute(f"SELECT * FROM book_chunks WHERE book_id = ? AND ({conditions}) ORDER BY chunk_index LIMIT ?",
                    (book_id, ) + tuple(params) + (limit, ))
     chunks = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return chunks
 
 # ========== Questions ==========
@@ -352,14 +363,14 @@ def save_question(class_id, book_id, title, question_text, correct_answer, diffi
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (class_id, book_id, title, question_text, correct_answer, difficulty, created_by))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def get_questions_by_class(class_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT q.*, b.title as book_title FROM questions q LEFT JOIN books b ON q.book_id = b.id WHERE q.class_id = ? ORDER BY q.created_at DESC", (class_id,))
     questions = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return questions
 
 def get_all_questions():
@@ -367,7 +378,7 @@ def get_all_questions():
     cursor = conn.cursor()
     cursor.execute("SELECT q.*, c.name as class_name FROM questions q LEFT JOIN classes c ON q.class_id = c.id ORDER BY q.created_at DESC")
     questions = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return questions
 
 def delete_question(question_id):
@@ -376,7 +387,7 @@ def delete_question(question_id):
     cursor.execute("DELETE FROM student_answers WHERE question_id = ?", (question_id,))
     cursor.execute("DELETE FROM questions WHERE id = ?", (question_id,))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 # ========== Student Answers ==========
 def save_student_answer(question_id, student_id, answer_text, ai_feedback=None, score=None):
     conn = get_db_connection()
@@ -386,7 +397,7 @@ def save_student_answer(question_id, student_id, answer_text, ai_feedback=None, 
         VALUES (?, ?, ?, ?, ?)
     """, (question_id, student_id, answer_text, ai_feedback, score))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def get_student_answers(student_id):
     conn = get_db_connection()
@@ -399,7 +410,7 @@ def get_student_answers(student_id):
         WHERE sa.student_id = ? ORDER BY sa.created_at DESC
     """, (student_id,))
     answers = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return answers
 
 # ========== Chat ==========
@@ -409,7 +420,7 @@ def save_chat(user_id, message, response, model="llama"):
     cursor.execute("INSERT INTO chat_history (user_id, message, response, model_used) VALUES (?, ?, ?, ?)",
                    (user_id, message, response, model))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def save_book_chat(user_id, book_id, message, response, chunks_used=""):
     conn = get_db_connection()
@@ -417,7 +428,7 @@ def save_book_chat(user_id, book_id, message, response, chunks_used=""):
     cursor.execute("INSERT INTO book_chat_history (user_id, book_id, message, response, chunks_used) VALUES (?, ?, ?, ?, ?)",
                    (user_id, book_id, message, response, chunks_used))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def get_book_chat_history(user_id, book_id, limit=20):
     conn = get_db_connection()
@@ -425,7 +436,7 @@ def get_book_chat_history(user_id, book_id, limit=20):
     cursor.execute("SELECT * FROM book_chat_history WHERE user_id = ? AND book_id = ? ORDER BY created_at DESC LIMIT ?",
                    (user_id, book_id, limit))
     chats = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return chats
 
 # ========== Notes ==========
@@ -435,14 +446,14 @@ def save_note(user_id, title, content, category="عام"):
     cursor.execute("INSERT INTO notes (user_id, title, content, category) VALUES (?, ?, ?, ?)",
                    (user_id, title, content, category))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def get_notes(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM notes WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
     notes = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-    conn.close()
+    close_conn(conn)
     return notes
 
 def delete_note(note_id, user_id):
@@ -450,7 +461,7 @@ def delete_note(note_id, user_id):
     cursor = conn.cursor()
     cursor.execute("DELETE FROM notes WHERE id = ? AND user_id = ?", (note_id, user_id))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 # ========== Activity & Stats ==========
 def log_activity(user_id, activity_type, details=""):
@@ -459,7 +470,7 @@ def log_activity(user_id, activity_type, details=""):
     cursor.execute("INSERT INTO activity_log (user_id, activity_type, details) VALUES (?, ?, ?)",
                    (user_id, activity_type, details))
     conn.commit()
-    conn.close()
+    close_conn(conn)
 
 def get_stats(user_id):
     conn = get_db_connection()
@@ -473,5 +484,5 @@ def get_stats(user_id):
     cursor.execute("SELECT COUNT(*) as total FROM student_answers WHERE student_id = ?", (user_id,))
     row = cursor.fetchone()
     total_answers = _row_to_dict(row, cursor)['total'] if row else 0
-    conn.close()
+    close_conn(conn)
     return {"total_chats": total_chats, "total_notes": total_notes, "total_answers": total_answers}
