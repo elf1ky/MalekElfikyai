@@ -3,5 +3,5 @@ openai==1.35.0
 python-dotenv==1.0.0
 PyPDF2==3.0.1
 python-docx==1.1.2
-libsql-experimental==0.0.41
+libsql
 Django
