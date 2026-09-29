@@ -48,7 +48,7 @@ def show_login():
     with col2:
         st.markdown("""
         <div class="login-container">
-            <div class="login-title">🎓 منصة التعلم الذكي</div>
+            <div class="login-title">🎓 منصة مالك الفقي</div>
             <div class="login-subtitle">تعلم بذكاء، تقدم بثقة</div>
         </div>
         """, unsafe_allow_html=True)
