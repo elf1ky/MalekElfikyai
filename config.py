@@ -21,7 +21,7 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "openai/gpt-oss-20b"
 
 # App Config
-APP_NAME = "🎓 منصة التعلم الذكي"
+APP_NAME = "🎓 منصة مالك الفقي"
 APP_ICON = "🎓"
 PAGE_CONFIG = {
     "page_title": "MalekElfikyAI",
